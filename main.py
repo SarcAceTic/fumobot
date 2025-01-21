@@ -2,7 +2,7 @@ import discord
 import logging
 from discord.ext import commands
 from discord.ui import View, Button
-from bottokens import token
+from bottokens import tokener
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
 from datetime import datetime
@@ -13,7 +13,7 @@ handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w'
 
 intents = discord.Intents.all()
 bot = commands.Bot(
-  command_prefix="*", 
+  command_prefix="?", 
   intents=intents, 
   activity=discord.Activity(name="Cleaning the Hakurei Shrine", type=discord.ActivityType.streaming),
   owner_ids=[556445511066976296, 1245710245192269917, 824431868589768734]
@@ -24,13 +24,20 @@ myGeneral = 1251195753020522642
 class MyHelpCommand(commands.HelpCommand):
   def __init__(self):
     super().__init__()
+  
+  def get_command_signature(self, command):
+    if command.clean_params:
+      commandParams = [f"({p})" for p in command.clean_params.keys()]
+      return commandParams
+    else:
+      return False
 
   async def send_bot_help(self, mapping):
     botEmbeds = []
 
     for cog, commandsList in mapping.items():
       cogName =  cog.qualified_name if cog else "Uncategorized"
-      commands = "\n".join(f"**{cmd.name}** {cmd.signature if cmd.signature else ''}\n_{cmd.help if cmd.help else 'No Description Provided'}_" for cmd in commandsList)
+      commands = "\n".join(f"**{cmd.name}** {" ".join(f"{para}" for para in self.get_command_signature(cmd)) if cmd.signature else ''}\n_{cmd.help if cmd.help else 'No Description Provided'}_" for cmd in commandsList)
       botEmbeds.append(
         discord.Embed(title=cogName + " Commands", description=commands, color=discord.Color.purple(), timestamp=datetime.now())
         .set_footer(
@@ -50,7 +57,7 @@ class MyHelpCommand(commands.HelpCommand):
       commandParams = []
 
     commandEmbed = discord.Embed(
-      description=f"**{command.name} {command.signature if command.signature else ''}\n**{command.help}\n\n{'Arguments:' if commandParams else ''}\n\n{'\n'.join(f"{param.name} - _{param.description}_" for param in commandParams)}",
+      description=f"**{command.name} {" ".join(para for para in self.get_command_signature(command))}\n**{command.help}\n\n{'Arguments:' if commandParams else ''}\n\n{'\n'.join(f"{param.name} - _{param.description}_" for param in commandParams)}",
       color=discord.Color.purple(),
       timestamp=datetime.now()
       )
@@ -60,12 +67,13 @@ class MyHelpCommand(commands.HelpCommand):
     )
 
     channel = self.get_destination()
+    cmdparams = self.get_command_signature(command)
     await channel.send(embed=commandEmbed)
   
   async def send_cog_help(self, cog):
     cogEmbed = discord.Embed(
       title=f"{cog.qualified_name} Commands",
-      description=f"{cog.description}\n\n{'\n'.join(f"{command.name} {command.signature if command.signature else ''}" for command in cog.get_commands())}",
+      description=f"{cog.description}\n\n{'\n'.join(f"{command.name} {" ".join(para for para in self.get_command_signature(command))}" for command in cog.get_commands())}",
       timestamp=datetime.now(),
       color = discord.Color.purple()
     )
@@ -205,9 +213,11 @@ async def on_command_error(ctx, err):
     await ctx.reply(f"I don't have permissions to do this... Or your role is higher than mine!")
   elif isinstance(err, customutilities.YoureTheOwner):
     await ctx.reply(f"I can't do this since you're the server owner!")
+  elif isinstance(err, commands.NoPrivateMessage):
+    await ctx.reply(f"Sorry, but you can only do this in a server!")
   else:
     print(err)
     await ctx.reply(f"Err... an unexpected issue happened! The problem has been sent to Ryn... Hang on tight!")
 
 bot.help_command = MyHelpCommand()
-bot.run(token) 
+bot.run(tokener) 
